@@ -9,15 +9,22 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/vishalpatel08/rag-service-go/internal/chunker"
+	"github.com/Ishitapathunda/rag-intelligence-engine/internal/chunker"
+	"github.com/Ishitapathunda/rag-intelligence-engine/internal/config"
 )
 
 func main() {
-	inDir := flag.String("in", "data/processed", "dir with clean .txt files")
-	outFile := flag.String("out", "data/processed/chunks.json", "where to write chunks")
-	size := flag.Int("size", 500, "words per chunk")
-	overlap := flag.Int("overlap", 50, "word overlap between chunks")
+	cfg := config.Load()
+
+	inDir := flag.String("in", cfg.ProcessedDir, "directory containing clean .txt files")
+	outFile := flag.String("out", filepath.Join(cfg.ProcessedDir, "chunks.json"), "output chunks JSON file")
+	size := flag.Int("size", cfg.ChunkSize, "words per chunk")
+	overlap := flag.Int("overlap", cfg.ChunkOverlap, "word overlap between chunks")
 	flag.Parse()
+
+	if *size <= 0 || *overlap < 0 || *overlap >= *size {
+		log.Fatal("invalid chunk settings: size must be positive and overlap must be >= 0 and smaller than size")
+	}
 
 	entries, err := os.ReadDir(*inDir)
 	if err != nil {
@@ -27,7 +34,7 @@ func main() {
 	var allChunks []chunker.Chunk
 
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".txt") {
+		if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".txt") {
 			continue
 		}
 
@@ -37,10 +44,15 @@ func main() {
 			continue
 		}
 
-		source := strings.TrimSuffix(e.Name(), ".txt")
+		source := strings.TrimSuffix(e.Name(), filepath.Ext(e.Name()))
 		chunks := chunker.ChunkText(source, string(data), *size, *overlap)
+
 		fmt.Printf("%s -> %d chunks\n", e.Name(), len(chunks))
 		allChunks = append(allChunks, chunks...)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(*outFile), 0755); err != nil {
+		log.Fatal(err)
 	}
 
 	f, err := os.Create(*outFile)
@@ -51,6 +63,7 @@ func main() {
 
 	enc := json.NewEncoder(f)
 	enc.SetIndent("", "  ")
+
 	if err := enc.Encode(allChunks); err != nil {
 		log.Fatal(err)
 	}

@@ -1,3 +1,4 @@
+
 package main
 
 import (
@@ -9,6 +10,8 @@ import (
 	"os"
 
 	"github.com/qdrant/go-client/qdrant"
+
+	"github.com/Ishitapathunda/rag-intelligence-engine/internal/config"
 )
 
 type embeddedChunk struct {
@@ -19,13 +22,14 @@ type embeddedChunk struct {
 	Vector   []float32 `json:"vector"`
 }
 
-const collectionName = "distsys-corpus"
 const vectorSize = 768 // nomic-embed-text dimension
 
 func main() {
+	cfg := config.Load()
+
 	inFile := flag.String("in", "data/processed/embeddings.json", "embeddings.json from cmd/embed")
-	host := flag.String("host", "localhost", "qdrant host")
-	port := flag.Int("port", 6334, "qdrant grpc port")
+	host := flag.String("host", cfg.QdrantHost, "qdrant host")
+	port := flag.Int("port", cfg.QdrantPort, "qdrant grpc port")
 	flag.Parse()
 
 	data, err := os.ReadFile(*inFile)
@@ -48,13 +52,14 @@ func main() {
 
 	ctx := context.Background()
 
-	exists, err := client.CollectionExists(ctx, collectionName)
+	exists, err := client.CollectionExists(ctx, cfg.CollectionName)
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	if !exists {
 		err = client.CreateCollection(ctx, &qdrant.CreateCollection{
-			CollectionName: collectionName,
+			CollectionName: cfg.CollectionName,
 			VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
 				Size:     vectorSize,
 				Distance: qdrant.Distance_Cosine,
@@ -63,10 +68,11 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Printf("created collection %q", collectionName)
+		log.Printf("created collection %q", cfg.CollectionName)
 	}
 
 	var points []*qdrant.PointStruct
+
 	for _, c := range chunks {
 		if len(c.Vector) == 0 {
 			continue // batch failed during embedding, skip it
@@ -85,14 +91,14 @@ func main() {
 	}
 
 	_, err = client.Upsert(ctx, &qdrant.UpsertPoints{
-		CollectionName: collectionName,
+		CollectionName: cfg.CollectionName,
 		Points:         points,
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	log.Printf("upserted %d points into %q", len(points), collectionName)
+	log.Printf("upserted %d points into %q", len(points), cfg.CollectionName)
 }
 
 func numericID(s string) uint64 {

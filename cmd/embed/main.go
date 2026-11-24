@@ -8,8 +8,9 @@ import (
 	"os"
 	"sync"
 
-	"github.com/vishalpatel08/rag-service-go/internal/chunker"
-	"github.com/vishalpatel08/rag-service-go/internal/embedder"
+	"github.com/Ishitapathunda/rag-intelligence-engine/internal/chunker"
+	"github.com/Ishitapathunda/rag-intelligence-engine/internal/embedder"
+	"github.com/Ishitapathunda/rag-intelligence-engine/internal/config"
 )
 
 type embeddedChunk struct {
@@ -18,11 +19,13 @@ type embeddedChunk struct {
 }
 
 func main() {
+	cfg := config.Load()
 	inFile := flag.String("in", "data/processed/chunks.json", "chunks.json from cmd/chunk")
 	outFile := flag.String("out", "data/processed/embeddings.json", "where to write embedded chunks")
-	model := flag.String("model", "nomic-embed-text", "ollama embedding model")
+	model := flag.String("model", cfg.EmbeddingModel, "ollama embedding model")
 	batchSize := flag.Int("batch", 20, "chunks per call")
 	workers := flag.Int("workers", 4, "concurrent batches in flight")
+	
 	flag.Parse()
 
 	data, err := os.ReadFile(*inFile)
@@ -35,8 +38,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	emb := embedder.NewOllama(*model)
-
+	emb := embedder.NewOllama(cfg.OllamaURL, *model)
 	// split into batches
 	var batches [][]chunker.Chunk
 	for i := 0; i < len(chunks); i += *batchSize {

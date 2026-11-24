@@ -9,14 +9,18 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/Ishitapathunda/rag-intelligence-engine/internal/config"
 )
 
 func main() {
-	rawDir := flag.String("raw", "data/raw", "dir with source pdf/txt/md files")
-	outDir := flag.String("out", "data/processed", "where to write clean .txt files")
+	cfg := config.Load()
+
+	rawDir := flag.String("raw", cfg.RawDir, "directory containing source PDF/TXT/MD files")
+	outDir := flag.String("out", cfg.ProcessedDir, "directory for extracted text files")
 	flag.Parse()
 
-	if err := os.MkdirAll(*outDir, 0o755); err != nil {
+	if err := os.MkdirAll(*outDir, 0755); err != nil {
 		log.Fatal(err)
 	}
 

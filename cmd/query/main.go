@@ -1,3 +1,4 @@
+
 package main
 
 import (
@@ -8,16 +9,18 @@ import (
 	"strings"
 
 	"github.com/qdrant/go-client/qdrant"
-	"github.com/vishalpatel08/rag-service-go/internal/embedder"
-	"github.com/vishalpatel08/rag-service-go/internal/llm"
-	"github.com/vishalpatel08/rag-service-go/internal/retriever"
+
+	"github.com/Ishitapathunda/rag-intelligence-engine/internal/config"
+	"github.com/Ishitapathunda/rag-intelligence-engine/internal/embedder"
+	"github.com/Ishitapathunda/rag-intelligence-engine/internal/llm"
+	"github.com/Ishitapathunda/rag-intelligence-engine/internal/retriever"
 )
 
-const collectionName = "distsys-corpus"
-
 func main() {
+	cfg := config.Load()
+
 	question := flag.String("q", "", "question to ask")
-	topK := flag.Uint64("k", 5, "number of chunks to retrieve")
+	topK := flag.Uint64("k", cfg.TopK, "number of chunks to retrieve")
 	flag.Parse()
 
 	if *question == "" {
@@ -26,20 +29,24 @@ func main() {
 
 	ctx := context.Background()
 
-	// embed the question with the same model used during ingestion
-	emb := embedder.NewOllama("nomic-embed-text")
+	// Embed the question
+	emb := embedder.NewOllama(cfg.OllamaURL, cfg.EmbeddingModel)
 	vectors, err := emb.Embed([]string{*question})
 	if err != nil {
 		log.Fatal(err)
 	}
 	queryVector := vectors[0]
 
-	// search qdrant for the closest chunks
-	client, err := qdrant.NewClient(&qdrant.Config{Host: "localhost", Port: 6334})
+	// Connect to Qdrant
+	client, err := qdrant.NewClient(&qdrant.Config{
+		Host: cfg.QdrantHost,
+		Port: cfg.QdrantPort,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	r := retriever.New(client, collectionName)
+
+	r := retriever.New(client, cfg.CollectionName)
 
 	results, err := r.Search(ctx, queryVector, *topK)
 	if err != nil {
@@ -51,20 +58,29 @@ func main() {
 		return
 	}
 
-	// build the prompt: context chunks + question
+	// Build context from retrieved chunks
 	var contextBuilder strings.Builder
 	for i, res := range results {
-		fmt.Fprintf(&contextBuilder, "[%d] source: %s\n%s\n\n", i+1, res.Source, res.Text)
+		fmt.Fprintf(
+			&contextBuilder,
+			"[%d] source: %s\n%s\n\n",
+			i+1,
+			res.Source,
+			res.Text,
+		)
 	}
 
 	prompt := fmt.Sprintf(`Answer the question using only the context below. If the context doesn't contain the answer, say so.
 
 Context:
 %s
-Question: %s`, contextBuilder.String(), *question)
+Question: %s`,
+		contextBuilder.String(),
+		*question,
+	)
 
-	// generate the answer
-	gen := llm.NewOllama("llama3.2")
+	// Generate the answer
+	gen := llm.NewOllama(cfg.OllamaURL, cfg.LLMModel)
 	answer, err := gen.Generate(prompt)
 	if err != nil {
 		log.Fatal(err)
@@ -75,6 +91,7 @@ Question: %s`, contextBuilder.String(), *question)
 
 	fmt.Println("\nSources:")
 	for _, res := range results {
-		fmt.Printf("- %s (chunk %d, score %.3f)\n", res.Source, res.Position, res.Score)
+		fmt.Printf("- %s (chunk %d, score %.3f)\n",
+			res.Source, res.Position, res.Score)
 	}
 }

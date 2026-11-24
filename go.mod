@@ -1,4 +1,4 @@
-module github.com/vishalpatel08/rag-service-go
+module github.com/Ishitapathunda/rag-intelligence-engine
 
 go 1.25.3
 

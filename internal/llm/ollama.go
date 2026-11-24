@@ -12,10 +12,10 @@ type OllamaLLM struct {
 	url   string
 }
 
-func NewOllama(model string) *OllamaLLM {
+func NewOllama(baseURL, model string) *OllamaLLM {
 	return &OllamaLLM{
 		model: model,
-		url:   "http://localhost:11434/api/generate",
+		url:   baseURL + "/api/generate",
 	}
 }
 

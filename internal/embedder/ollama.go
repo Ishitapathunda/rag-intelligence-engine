@@ -12,10 +12,10 @@ type OllamaEmbedder struct {
 	url   string
 }
 
-func NewOllama(model string) *OllamaEmbedder {
+func NewOllama(baseURL, model string) *OllamaEmbedder {
 	return &OllamaEmbedder{
 		model: model,
-		url:   "http://localhost:11434/api/embed",
+		url:   baseURL + "/api/embed",
 	}
 }
 
